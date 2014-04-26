@@ -72,7 +72,7 @@ public class AutoDictionary extends SQLiteUserDictionaryBase {
      * @param type what type of addition was it
      * @return true if the word was promoted to user's dictionary.
      */
-    public boolean addWord(WordComposer word, AdditionType type, AnySoftKeyboard callingIme) {
+    public boolean addWord(WordComposer word, WordComposer currentWord, AdditionType type, AnySoftKeyboard callingIme) {
         synchronized (mResourceMonitor) {
             if (isClosed()) {
                 Log.d(TAG, "Dictionary (type "+this.getClass().getName()+") "+this.getDictionaryName()+" is closed! Can not add word.");
@@ -84,7 +84,7 @@ public class AutoDictionary extends SQLiteUserDictionaryBase {
                 return false;
             //ask can not be null! This should not happen (since the caller is ASK instance...)
             String wordToAdd = word.getTypedWord().toString();
-            if (callingIme.getCurrentWord().isAutoCapitalized()) {
+            if (currentWord.isAutoCapitalized()) {
                 // Remove caps before adding
                 wordToAdd = Character.toLowerCase(wordToAdd.charAt(0)) + wordToAdd.substring(1);
             }
