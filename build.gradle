@@ -152,4 +152,6 @@ idea {
     module {
         testOutputDir = file('build/test-classes/debug')
     }
+
+    //compile project(":predict")
 }
