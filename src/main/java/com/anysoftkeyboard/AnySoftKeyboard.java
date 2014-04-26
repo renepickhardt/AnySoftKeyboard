@@ -45,6 +45,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.AnimationUtils;
 import android.view.inputmethod.CompletionInfo;
+import android.view.inputmethod.CorrectionInfo;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
@@ -101,6 +102,8 @@ import com.menny.android.anysoftkeyboard.BuildConfig;
 import com.menny.android.anysoftkeyboard.FeaturesSet;
 import com.menny.android.anysoftkeyboard.R;
 
+import de.typology.predict.PredictionContextComposer;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -147,7 +150,10 @@ public class AnySoftKeyboard extends InputMethodService implements
     private EditableDictionary mUserDictionary;
     private AutoDictionary mAutoDictionary;
 
-    private WordComposer mWord = new WordComposer();
+    //<pred-integration>
+//    private WordComposer mWord = new WordComposer();
+    private PredictionContextComposer mComposer;
+    private CharSequence mPreferredWord;
 
     private int mOrientation = Configuration.ORIENTATION_PORTRAIT;
 
@@ -718,7 +724,9 @@ public class AnySoftKeyboard extends InputMethodService implements
                     + oldSelEnd + ", nss=" + newSelStart + ", nse=" + newSelEnd
                     + ", cs=" + candidatesStart + ", ce=" + candidatesEnd);
 
-        mWord.setGlobalCursorPosition(newSelEnd);
+        //<pred-integration>
+        //TODO: what is this good for?
+//        mWord.setGlobalCursorPosition(newSelEnd);
 
         if (!isPredictionOn()/* || mInputView == null || !mInputView.isShown() */)
             return;// not relevant if no prediction is needed.
@@ -753,7 +761,8 @@ public class AnySoftKeyboard extends InputMethodService implements
                     // cursor position and shift state
                     // inside the currently selected word
                     int cursorPosition = newSelEnd - candidatesStart;
-                    if (mWord.setCursorPostion(cursorPosition)) {
+                    //<pred-integration>
+                    if (mComposer.setCursorPosition(cursorPosition)) {
                         Log.d(TAG,
                                     "onUpdateSelection: cursor moving inside the predicting word");
                     }
@@ -888,17 +897,22 @@ public class AnySoftKeyboard extends InputMethodService implements
             Log.d(TAG, "Starting new prediction on word '" + word + "'.");
             mPredicting = word.length() > 0;
             mUndoCommitCursorPosition = -2;// so it will be marked the next time
-            mWord.reset();
+            //<pred-integration>
+            mComposer.clearEverything();
 
             final int[] alekNearByKeys = new int[1];
 
+            //TODO: use context already in the PredictionContextProvider here if available
             for (int index = 0; index < word.length(); index++) {
                 final char c = word.charAt(index);
-                if (index == 0)
-                    mWord.setFirstCharCapitalized(Character.isUpperCase(c));
+
+                //TODO: is this necessary? We can just look it up if someone asks.
+//                if (index == 0)
+//                    mWord.setFirstCharCapitalized(Character.isUpperCase(c));
 
                 alekNearByKeys[0] = c;
-                mWord.add(c, alekNearByKeys);
+                //<pred-integration>
+                mComposer.addChar(c, false, alekNearByKeys);
 
                 TextEntryState.typedCharacter((char) c, false);
             }
@@ -914,7 +928,8 @@ public class AnySoftKeyboard extends InputMethodService implements
                 ic.setSelection(cursorPosition, cursorPosition);
             }
 
-            mWord.setCursorPostion(toLeft.length());
+            //<pred-integration>
+            mComposer.setCursorPosition(toLeft.length());
             ic.endBatchEdit();
             postUpdateSuggestions();
         } else {
@@ -973,7 +988,7 @@ public class AnySoftKeyboard extends InputMethodService implements
                     + stringList.size() + " completions.");
             // CharSequence typedWord = mWord.getTypedWord();
             setSuggestions(stringList, true, true, true);
-            mWord.setPreferredWord(null);
+            mPreferredWord = null;
             // I mean, if I'm here, it must be shown...
             setCandidatesViewShown(true);
         } else {
@@ -1406,7 +1421,9 @@ public class AnySoftKeyboard extends InputMethodService implements
 				 * for promoting from Auto to User ||
 				 */(!mSuggest.isValidWord(suggestionToCheck))) {
 
-                final boolean added = mAutoDictionary.addWord(suggestion, type, this);
+                //TODO: change adding workflow
+//                final boolean added = mAutoDictionary.addWord(suggestion, null, type, this);
+                final boolean added = false;
                 if (added && mCandidateView != null) {
                     mCandidateView.notifyAboutWordAdded(suggestion.getTypedWord());
                 }
@@ -1426,15 +1443,20 @@ public class AnySoftKeyboard extends InputMethodService implements
     private void commitTyped(InputConnection inputConnection) {
         if (mPredicting) {
             mPredicting = false;
-            if (mWord.length() > 0) {
+            //<pred-integration>
+            if (mComposer.getLength() > 0) {
                 if (inputConnection != null) {
                     inputConnection.commitText(
-					mWord.getTypedWord(), 1);
+                    //<pred-integration>
+					mComposer.getTypedWord(), 1);
                 }
-                mCommittedLength = mWord.length();// mComposing.length();
+                mCommittedLength = mComposer.getLength();// mComposing.length();
+                //<pred-integration>
                 TextEntryState
-                        .acceptedTyped(mWord.getTypedWord());
-                addToDictionaries(mWord, AutoDictionary.AdditionType.Typed);
+                        .acceptedTyped(mComposer.getTypedWord());
+                //<pred-integration>
+                //TODO: change adding workflow
+//                addToDictionaries(mWord, AutoDictionary.AdditionType.Typed);
             }
             if (mHandler.hasMessages(KeyboardUIStateHanlder.MSG_UPDATE_SUGGESTIONS)) {
                 postUpdateSuggestions(-1);
@@ -2014,7 +2036,9 @@ public class AnySoftKeyboard extends InputMethodService implements
             return;
 
         if (mPredicting) {
-            mWord.reset();
+            //TODO: investigate if last word should be restarted or if the deletion just
+            //sets you back to the gap in between the words
+            mComposer.clearCurrentWord();
             mPredicting = false;
             ic.setComposingText("", 1);
             postUpdateSuggestions();
@@ -2089,12 +2113,12 @@ public class AnySoftKeyboard extends InputMethodService implements
 
         boolean deleteChar = false;
         if (mPredicting) {
-            final boolean wordManipulation = mWord.length() > 0
-                    && mWord.cursorPosition() > 0;// mComposing.length();
+            final boolean wordManipulation = mComposer.getLength() > 0
+                    && mComposer.getCursorPosition() > 0;// mComposing.length();
             if (wordManipulation) {
-                mWord.deleteLast();
+                mComposer.deleteBeforeCursor();
                 final int cursorPosition;
-                if (mWord.cursorPosition() != mWord.length())
+                if (mComposer.getCursorPosition() != mComposer.getLength())
                     cursorPosition = getCursorPosition(ic);
                 else
                     cursorPosition = -1;
@@ -2102,8 +2126,8 @@ public class AnySoftKeyboard extends InputMethodService implements
                 if (cursorPosition >= 0)
                     ic.beginBatchEdit();
 
-                ic.setComposingText(mWord.getTypedWord(), 1);
-                if (mWord.length() == 0) {
+                ic.setComposingText(mComposer.getTypedWord(), 1);
+                if (mComposer.getLength() == 0) {
                     mPredicting = false;
                 } else if (cursorPosition >= 0) {
                     ic.setSelection(cursorPosition - 1, cursorPosition - 1);
@@ -2243,7 +2267,7 @@ public class AnySoftKeyboard extends InputMethodService implements
 
             TextEntryState.reset();
             mUndoCommitCursorPosition = -2;
-            mWord.reset();
+            mComposer.clearCurrentWord();
             mPredicting = false;
             mJustAddedAutoSpace = false;
             if (forever) {
@@ -2265,7 +2289,7 @@ public class AnySoftKeyboard extends InputMethodService implements
                 && !isCursorTouchingWord()) {
             mPredicting = true;
             mUndoCommitCursorPosition = -2;// so it will be marked the next time
-            mWord.reset();
+            mComposer.clearCurrentWord();
         }
 
         mLastCharacterWasShifted = (mInputView != null)
@@ -2295,41 +2319,45 @@ public class AnySoftKeyboard extends InputMethodService implements
             primaryCodeForShow = primaryCode;
         }
 
+
         if (mPredicting) {
-            if ((mInputView != null) && mInputView.isShifted()
-                    && mWord.cursorPosition() == 0) {
-                mWord.setFirstCharCapitalized(true);
-            }
+            //TODO: is this necessary? We can just look it up if someone asks.
+//            if ((mInputView != null) && mInputView.isShifted()
+//                    && mComposer.getCursorPosition() == 0) {
+//                mWord.setFirstCharCapitalized(true);
+//            }
 
             final InputConnection ic = getCurrentInputConnection();
-            if (mWord.add(primaryCodeForShow, nearByKeyCodes)) {
-                Toast note = Toast
-                        .makeText(
-                                getApplicationContext(),
-                                "Check the logcat for a note from AnySoftKeyboard developers!",
-                                Toast.LENGTH_LONG);
-                note.show();
-
-                Log.i(TAG,
-                        "*******************"
-                                + "\nNICE!!! You found the our easter egg! http://www.dailymotion.com/video/x3zg90_gnarls-barkley-crazy-2006-mtv-star_music\n"
-                                + "\nAnySoftKeyboard R&D team would like to thank you for using our keyboard application."
-                                + "\nWe hope you enjoying it, we enjoyed making it."
-                                + "\nWhile developing this application, we heard Gnarls Barkley's Crazy quite a lot, and would like to share it with you."
-                                + "\n"
-                                + "\nThanks."
-                                + "\nMenny Even Danan, Hezi Cohen, Hugo Lopes, Henrik Andersson, Sami Salonen, and Lado Kumsiashvili."
-                                + "\n*******************");
-
-                Intent easterEgg = new Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse("http://www.dailymotion.com/video/x3zg90_gnarls-barkley-crazy-2006-mtv-star_music"));
-                easterEgg.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(easterEgg);
-            }
+            mComposer.addChar(primaryCodeForShow, false, nearByKeyCodes);
+            //sorry for removing the easter egg :( Just compare with the typed word.
+//            if (mComposer.addChar(primaryCodeForShow, false, nearByKeyCodes)) {
+//                Toast note = Toast
+//                        .makeText(
+//                                getApplicationContext(),
+//                                "Check the logcat for a note from AnySoftKeyboard developers!",
+//                                Toast.LENGTH_LONG);
+//                note.show();
+//
+//                Log.i(TAG,
+//                        "*******************"
+//                                + "\nNICE!!! You found the our easter egg! http://www.dailymotion.com/video/x3zg90_gnarls-barkley-crazy-2006-mtv-star_music\n"
+//                                + "\nAnySoftKeyboard R&D team would like to thank you for using our keyboard application."
+//                                + "\nWe hope you enjoying it, we enjoyed making it."
+//                                + "\nWhile developing this application, we heard Gnarls Barkley's Crazy quite a lot, and would like to share it with you."
+//                                + "\n"
+//                                + "\nThanks."
+//                                + "\nMenny Even Danan, Hezi Cohen, Hugo Lopes, Henrik Andersson, Sami Salonen, and Lado Kumsiashvili."
+//                                + "\n*******************");
+//
+//                Intent easterEgg = new Intent(
+//                        Intent.ACTION_VIEW,
+//                        Uri.parse("http://www.dailymotion.com/video/x3zg90_gnarls-barkley-crazy-2006-mtv-star_music"));
+//                easterEgg.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+//                startActivity(easterEgg);
+//            }
             if (ic != null) {
                 final int cursorPosition;
-                if (mWord.cursorPosition() != mWord.length()) {
+                if (mComposer.getCursorPosition() != mComposer.getLength()) {
                     Log.d(TAG,
                         "Cursor is not at the end of the word. I'll need to reposition");
                     cursorPosition = getCursorPosition(ic);
@@ -2340,7 +2368,7 @@ public class AnySoftKeyboard extends InputMethodService implements
                 if (cursorPosition >= 0)
                     ic.beginBatchEdit();
 
-                ic.setComposingText(mWord.getTypedWord(), 1);
+                ic.setComposingText(mComposer.getTypedWord(), 1);
                 if (cursorPosition >= 0) {
                     ic.setSelection(cursorPosition + 1, cursorPosition + 1);
                     ic.endBatchEdit();
@@ -2353,7 +2381,7 @@ public class AnySoftKeyboard extends InputMethodService implements
             } else {
                 // just replace the typed word in the candidates view
                 if (mCandidateView != null)
-                    mCandidateView.replaceTypedWord(mWord.getTypedWord());
+                    mCandidateView.replaceTypedWord(mComposer.getTypedWord());
             }
         } else {
             sendKeyChar((char) primaryCodeForShow);
@@ -2382,7 +2410,7 @@ public class AnySoftKeyboard extends InputMethodService implements
         // this is a special case, when the user presses a separator WHILE
         // inside the predicted word.
         // in this case, I will want to just dump the separator.
-        final boolean separatorInsideWord = (mWord.cursorPosition() < mWord.length());
+        final boolean separatorInsideWord = (mComposer.getCursorPosition() < mComposer.getLength());
 
         if (mPredicting && !separatorInsideWord) {
             // In certain languages where single quote is a separator, it's
@@ -2435,9 +2463,9 @@ public class AnySoftKeyboard extends InputMethodService implements
         } else if (/* isPredictionOn() && */primaryCode == ' ') {
             doubleSpace();
         }
-        if (pickedDefault && mWord.getPreferredWord() != null) {
-            TextEntryState.acceptedDefault(mWord.getTypedWord(),
-                    mWord.getPreferredWord());
+        if (pickedDefault && mPreferredWord != null) {
+            TextEntryState.acceptedDefault(mComposer.getTypedWord(),
+                    mPreferredWord);
         }
         updateShiftKeyState(getCurrentInputEditorInfo());
         if (ic != null) {
@@ -2526,10 +2554,14 @@ public class AnySoftKeyboard extends InputMethodService implements
             return;
         }
 
-        List<CharSequence> stringList = mSuggest.getSuggestions(/* mInputView, */mWord, false);
+        //TODO: make lookup to Predict class
+//        List<CharSequence> stringList = mSuggest.getSuggestions(/* mInputView, */mWord, false);
+        List<CharSequence> stringList = new ArrayList<CharSequence>();
+        stringList.add("TODO");
+
         boolean correctionAvailable = mSuggest.hasMinimalCorrection();
         // || mCorrectionMode == mSuggest.CORRECTION_FULL;
-        CharSequence typedWord = mWord.getTypedWord();
+        CharSequence typedWord = mComposer.getTypedWord();
         // If we're in basic correct
         boolean typedWordValid = mSuggest.isValidWord(typedWord);/*
                 || (preferCapitalization() && mSuggest.isValidWord(typedWord
@@ -2540,19 +2572,19 @@ public class AnySoftKeyboard extends InputMethodService implements
         }
 
         // Don't auto-correct words with multiple capital letter
-        correctionAvailable &= !mWord.isMostlyCaps();
+        correctionAvailable &= !mComposer.isMostlyCaps();
         correctionAvailable &= !TextEntryState.isCorrecting();
 
         mCandidateView.setSuggestions(stringList, false, typedWordValid,
                 correctionAvailable);
         if (stringList.size() > 0) {
             if (correctionAvailable && !typedWordValid && stringList.size() > 1) {
-                mWord.setPreferredWord(stringList.get(1));
+                mPreferredWord = stringList.get(1);
             } else {
-                mWord.setPreferredWord(typedWord);
+                mPreferredWord = typedWord;
             }
         } else {
-            mWord.setPreferredWord(null);
+            mPreferredWord = null;
         }
         setCandidatesViewShown(shouldCandidatesStripBeShown() || mCompletionOn);
     }
@@ -2564,17 +2596,18 @@ public class AnySoftKeyboard extends InputMethodService implements
             postUpdateSuggestions(-1);
         }
 
-        final CharSequence bestWord = mWord.getPreferredWord();
+        final CharSequence bestWord = mPreferredWord;
         Log.d(TAG, "pickDefaultSuggestion: bestWord:" + bestWord);
         
         if (!TextUtils.isEmpty(bestWord)) {
-            final CharSequence typedWord = mWord.getTypedWord();
+            final CharSequence typedWord = mComposer.getTypedWord();
             TextEntryState.acceptedDefault(typedWord, bestWord);
             // mJustAccepted = true;
             final boolean fixed = !typedWord.equals(pickSuggestion(bestWord, !bestWord.equals(typedWord)));
             if (!fixed) {//if the word typed was auto-replaced, we should not learn it.
                 // Add the word to the auto dictionary if it's not a known word
-                addToDictionaries(mWord, AutoDictionary.AdditionType.Typed);
+                //TODO: change adding workflow
+//                addToDictionaries(mWord, AutoDictionary.AdditionType.Typed);
             }
             return true;
         }
@@ -2605,7 +2638,7 @@ public class AnySoftKeyboard extends InputMethodService implements
             }
             pickSuggestion(suggestion, correcting);
 
-            TextEntryState.acceptedSuggestion(mWord.getTypedWord(), suggestion);
+            TextEntryState.acceptedSuggestion(mComposer.getTypedWord(), suggestion);
             // Follow it with a space
             if (mAutoSpace && !correcting) {
                 sendSpace();
@@ -2614,7 +2647,8 @@ public class AnySoftKeyboard extends InputMethodService implements
             // Add the word to the auto dictionary if it's not a known word
             mJustAutoAddedWord = false;
             if (index == 0) {
-                mJustAutoAddedWord = addToDictionaries(mWord, AutoDictionary.AdditionType.Picked);
+                //TODO: change adding workflow
+//                mJustAutoAddedWord = addToDictionaries(mWord, AutoDictionary.AdditionType.Picked);
             }
 
             final boolean showingAddToDictionaryHint = !mJustAutoAddedWord
@@ -2670,14 +2704,16 @@ public class AnySoftKeyboard extends InputMethodService implements
                     + suggestion.subSequence(1, suggestion.length()).toString();
         }
 
-        mWord.setPreferredWord(suggestion);
+        mPreferredWord = suggestion;
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) {
             if (correcting) {
-                AnyApplication.getDeviceSpecific()
-                        .commitCorrectionToInputConnection(ic, mWord);
+                //TODO: investigate effect of ignoring the device specific commit
+//                AnyApplication.getDeviceSpecific()
+//                        .commitCorrectionToInputConnection(ic, mWord);
+                ic.commitCorrection(new CorrectionInfo(0, mComposer.getTypedWord(), suggestion));
                 // and drawing popout text
-                mInputView.popTextOutOfKey(mWord.getPreferredWord());
+                mInputView.popTextOutOfKey(mPreferredWord);
             } else {
                 ic.commitText(suggestion, 1);
             }
@@ -2723,12 +2759,12 @@ public class AnySoftKeyboard extends InputMethodService implements
 
     public void revertLastWord(boolean deleteChar) {
         Log.d(TAG, "revertLastWord deleteChar:" + deleteChar
-                + ", mWord.size:" + mWord.length() + " mPredicting:"
+                + ", mWord.size:" + mComposer.getLength() + " mPredicting:"
                 + mPredicting + " mCommittedLength" + mCommittedLength);
 
-        final int length = mWord.length();// mComposing.length();
+        final int length = mComposer.getLength();// mComposing.length();
         if (!mPredicting && length > 0) {
-            final CharSequence typedWord = mWord.getTypedWord();
+            final CharSequence typedWord = mComposer.getTypedWord();
             final InputConnection ic = getCurrentInputConnection();
             mPredicting = true;
             mUndoCommitCursorPosition = -2;
@@ -2819,7 +2855,7 @@ public class AnySoftKeyboard extends InputMethodService implements
     }
 
     public boolean preferCapitalization() {
-        return mWord.isFirstCharCapitalized();
+        return mComposer.isFirstCharCapitalized();
     }
 
     private void nextAlterKeyboard(EditorInfo currentEditorInfo) {
@@ -3447,7 +3483,7 @@ public class AnySoftKeyboard extends InputMethodService implements
         if (countToDelete == 0)
             return;
 
-        final int currentLength = mWord.length();
+        final int currentLength = mComposer.getLength();
         boolean shouldDeleteUsingCompletion;
         if (currentLength > 0) {
             shouldDeleteUsingCompletion = true;
@@ -3457,12 +3493,12 @@ public class AnySoftKeyboard extends InputMethodService implements
 
                 int deletesLeft = countToDelete;
                 while (deletesLeft > 0) {
-                    mWord.deleteLast();
+                    mComposer.deleteBeforeCursor();
                     deletesLeft--;
                 }
             } else {
                 // mComposing.setLength(0);
-                mWord.reset();
+                mComposer.clearCurrentWord();
             }
         } else {
             shouldDeleteUsingCompletion = false;
@@ -3470,7 +3506,7 @@ public class AnySoftKeyboard extends InputMethodService implements
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) {
             if (mPredictionOn && shouldDeleteUsingCompletion) {
-                ic.setComposingText(mWord.getTypedWord()/* mComposing */, 1);
+                ic.setComposingText(mComposer.getTypedWord()/* mComposing */, 1);
                 // updateCandidates();
             } else {
                 ic.deleteSurroundingText(countToDelete, 0);
@@ -3596,10 +3632,6 @@ public class AnySoftKeyboard extends InputMethodService implements
             return false;
         else
             return mUserDictionary.addWord(word, frequency);
-    }
-
-    public WordComposer getCurrentWord() {
-        return mWord;
     }
 
     /**
