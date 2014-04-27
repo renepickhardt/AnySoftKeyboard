@@ -390,7 +390,7 @@ public class CandidateView extends View {
         invalidate();
     }
 
-    public void setSuggestions(List<CharSequence> suggestions,
+    public void setSuggestions(List<? extends CharSequence> suggestions,
                                boolean completions, boolean typedWordValid,
                                boolean haveMinimalSuggestion) {
         clear();

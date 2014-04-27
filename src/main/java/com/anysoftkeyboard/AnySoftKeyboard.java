@@ -102,7 +102,10 @@ import com.menny.android.anysoftkeyboard.BuildConfig;
 import com.menny.android.anysoftkeyboard.FeaturesSet;
 import com.menny.android.anysoftkeyboard.R;
 
+import de.typology.predict.OnPredictionsComputedCallback;
+import de.typology.predict.Predict;
 import de.typology.predict.PredictionContextComposer;
+import de.typology.predict.model.Prediction;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -134,7 +137,7 @@ public class AnySoftKeyboard extends InputMethodService implements
     private static final long MINIMUM_REFRESH_TIME_FOR_DICTIONARIES = 30 * 1000;
     private long mLastDictionaryRefresh = -1;
     private int mMinimumWordCorrectionLength = 2;
-    private Suggest mSuggest;
+//    private Suggest mSuggest;
     private CompletionInfo[] mCompletions;
 
     private AlertDialog mOptionsDialog;
@@ -150,10 +153,11 @@ public class AnySoftKeyboard extends InputMethodService implements
     private EditableDictionary mUserDictionary;
     private AutoDictionary mAutoDictionary;
 
-    //<pred-integration>
+    //Prediction API integration
 //    private WordComposer mWord = new WordComposer();
     private PredictionContextComposer mComposer;
     private CharSequence mPreferredWord;
+    private Predict mPredict;
 
     private int mOrientation = Configuration.ORIENTATION_PORTRAIT;
 
@@ -293,9 +297,10 @@ public class AnySoftKeyboard extends InputMethodService implements
 
         mSentenceSeparators = getCurrentKeyboard().getSentenceSeparators();
 
-        if (mSuggest == null) {
+        if (mPredict == null) {
             initSuggest(/* getResources().getConfiguration().locale.toString() */);
         }
+        mComposer = mPredict.getPredictionContextComposer();
 
         if (mKeyboardChangeNotificationType
                 .equals(KEYBOARD_NOTIFICATION_ALWAYS)) {
@@ -309,10 +314,12 @@ public class AnySoftKeyboard extends InputMethodService implements
     }
 
     private void initSuggest() {
-        mSuggest = new Suggest(this);
-        mSuggest.setCorrectionMode(mQuickFixes, mShowSuggestions);
-        mSuggest.setMinimumWordLengthForCorrection(mMinimumWordCorrectionLength);
-        setDictionariesForCurrentKeyboard();
+        mPredict = new Predict();
+        //TODO: configure Predict
+//        mSuggest = new Suggest(this);
+//        mSuggest.setCorrectionMode(mQuickFixes, mShowSuggestions);
+//        mSuggest.setMinimumWordLengthForCorrection(mMinimumWordCorrectionLength);
+//        setDictionariesForCurrentKeyboard();
     }
 
     @Override
@@ -334,10 +341,10 @@ public class AnySoftKeyboard extends InputMethodService implements
 
         mKeyboardSwitcher.setInputView(null);
 
-        mSuggest.setAutoDictionary(null);
-        mSuggest.setContactsDictionary(getApplicationContext(), false);
-        mSuggest.setMainDictionary(getApplicationContext(), null);
-        mSuggest.setUserDictionary(null);
+//        mSuggest.setAutoDictionary(null);
+//        mSuggest.setContactsDictionary(getApplicationContext(), false);
+//        mSuggest.setMainDictionary(getApplicationContext(), null);
+//        mSuggest.setUserDictionary(null);
 
         if (DeveloperUtils.hasTracingStarted()) {
             DeveloperUtils.stopTracing();
@@ -660,9 +667,10 @@ public class AnySoftKeyboard extends InputMethodService implements
         // loadSettings();
         updateShiftKeyState(attribute);
 
-        if (mSuggest != null) {
-            mSuggest.setCorrectionMode(mQuickFixes, mShowSuggestions);
-        }
+        //TODO: configure Predict
+//        if (mSuggest != null) {
+//            mSuggest.setCorrectionMode(mQuickFixes, mShowSuggestions);
+//        }
 
         mPredictionOn = mPredictionOn && (mShowSuggestions/* || mQuickFixes */);
 
@@ -1413,30 +1421,31 @@ public class AnySoftKeyboard extends InputMethodService implements
         if (!mQuickFixes && !mShowSuggestions)
             return false;
 
-        if (suggestion != null && mAutoDictionary != null) {
-            String suggestionToCheck = suggestion.getTypedWord().toString();
-            if (/*
-				 * !addToBigramDictionary &&
-				 * mAutoDictionary.isValidWord(suggestionToCheck)//this check is
-				 * for promoting from Auto to User ||
-				 */(!mSuggest.isValidWord(suggestionToCheck))) {
-
-                //TODO: change adding workflow
-//                final boolean added = mAutoDictionary.addWord(suggestion, null, type, this);
-                final boolean added = false;
-                if (added && mCandidateView != null) {
-                    mCandidateView.notifyAboutWordAdded(suggestion.getTypedWord());
-                }
-                return added;
-            }
-			/*
-			 * if (mUserBigramDictionary != null) { CharSequence prevWord =
-			 * EditingUtil.getPreviousWord(getCurrentInputConnection(),
-			 * mSentenceSeparators); if (!TextUtils.isEmpty(prevWord)) {
-			 * mUserBigramDictionary.addBigrams(prevWord.toString(),
-			 * suggestion.toString()); } }
-			 */
-        }
+        //TODO: change adding workflow
+//        if (suggestion != null && mAutoDictionary != null) {
+//            String suggestionToCheck = suggestion.getTypedWord().toString();
+//            if (/*
+//				 * !addToBigramDictionary &&
+//				 * mAutoDictionary.isValidWord(suggestionToCheck)//this check is
+//				 * for promoting from Auto to User ||
+//				 */(!mSuggest.isValidWord(suggestionToCheck))) {
+//
+//
+////                final boolean added = mAutoDictionary.addWord(suggestion, null, type, this);
+//                final boolean added = false;
+//                if (added && mCandidateView != null) {
+//                    mCandidateView.notifyAboutWordAdded(suggestion.getTypedWord());
+//                }
+//                return added;
+//            }
+//			/*
+//			 * if (mUserBigramDictionary != null) { CharSequence prevWord =
+//			 * EditingUtil.getPreviousWord(getCurrentInputConnection(),
+//			 * mSentenceSeparators); if (!TextUtils.isEmpty(prevWord)) {
+//			 * mUserBigramDictionary.addBigrams(prevWord.toString(),
+//			 * suggestion.toString()); } }
+//			 */
+//        }
         return false;
     }
 
@@ -2274,9 +2283,10 @@ public class AnySoftKeyboard extends InputMethodService implements
                 Log.d(TAG, "abortCorrection will abort correct forever");
                 mPredictionOn = false;
                 setCandidatesViewShown(false);
-                if (mSuggest != null) {
-                    mSuggest.setCorrectionMode(false, false);
-                }
+                //TODO: configure predict or PredictionConfig
+//                if (mSuggest != null) {
+//                    mSuggest.setCorrectionMode(false, false);
+//                }
             }
         }
     }
@@ -2531,13 +2541,13 @@ public class AnySoftKeyboard extends InputMethodService implements
     }
 
     /*package*/ void performUpdateSuggestions() {
-        Log.d(TAG, "performUpdateSuggestions: has mSuggest:"
-                + (mSuggest != null) + ", isPredictionOn:"
+        Log.d(TAG, "performUpdateSuggestions: has mPredict:"
+                + (mPredict != null) + ", isPredictionOn:"
                 + isPredictionOn() + ", mPredicting:" + mPredicting
                 + ", mQuickFixes:" + mQuickFixes + " mShowSuggestions:"
                 + mShowSuggestions);
         // Check if we have a suggestion engine attached.
-        if (mSuggest == null) {
+        if (mPredict == null) {
             return;
         }
 
@@ -2556,37 +2566,48 @@ public class AnySoftKeyboard extends InputMethodService implements
 
         //TODO: make lookup to Predict class
 //        List<CharSequence> stringList = mSuggest.getSuggestions(/* mInputView, */mWord, false);
-        List<CharSequence> stringList = new ArrayList<CharSequence>();
-        stringList.add("TODO");
+        OnPredictionsComputedCallback predictionCallback = new OnPredictionsComputedCallback() {
+            @Override
+            public void onPredictionsComputed(final List<Prediction> predictions, final long querryId) {
+//                boolean correctionAvailable = mSuggest.hasMinimalCorrection();
+//                // || mCorrectionMode == mSuggest.CORRECTION_FULL;
 
-        boolean correctionAvailable = mSuggest.hasMinimalCorrection();
-        // || mCorrectionMode == mSuggest.CORRECTION_FULL;
-        CharSequence typedWord = mComposer.getTypedWord();
-        // If we're in basic correct
-        boolean typedWordValid = mSuggest.isValidWord(typedWord);/*
-                || (preferCapitalization() && mSuggest.isValidWord(typedWord
-                .toString().toLowerCase()));*/
+//                // If we're in basic correct
+//                boolean typedWordValid = mSuggest.isValidWord(typedWord);/*
+//                || (preferCapitalization() && mSuggest.isValidWord(typedWord
+//                .toString().toLowerCase()));*/
 
-        if (mShowSuggestions || mQuickFixes) {
-            correctionAvailable |= typedWordValid;
-        }
+                final CharSequence typedWord = mComposer.getTypedWord();
+                //the number of suggestions is > 0
+                boolean correctionAvailable = true;
+                //TODO: do we really need to know if the typed word is valid?
+                // We just rank all words according to their score
+                final boolean typedWordValid = false;
 
-        // Don't auto-correct words with multiple capital letter
-        correctionAvailable &= !mComposer.isMostlyCaps();
-        correctionAvailable &= !TextEntryState.isCorrecting();
+                if (mShowSuggestions || mQuickFixes) {
+                    correctionAvailable |= typedWordValid;
+                }
 
-        mCandidateView.setSuggestions(stringList, false, typedWordValid,
-                correctionAvailable);
-        if (stringList.size() > 0) {
-            if (correctionAvailable && !typedWordValid && stringList.size() > 1) {
-                mPreferredWord = stringList.get(1);
-            } else {
-                mPreferredWord = typedWord;
+                // Don't auto-correct words with multiple capital letter
+                correctionAvailable &= !mComposer.isMostlyCaps();
+                correctionAvailable &= !TextEntryState.isCorrecting();
+
+                mCandidateView.setSuggestions(predictions, false, typedWordValid,
+                        correctionAvailable);
+                if (predictions.size() > 0) {
+                    if (correctionAvailable && !typedWordValid && predictions.size() > 1) {
+                        mPreferredWord = predictions.get(1);
+                    } else {
+                        mPreferredWord = typedWord;
+                    }
+                } else {
+                    mPreferredWord = null;
+                }
+                setCandidatesViewShown(shouldCandidatesStripBeShown() || mCompletionOn);
             }
-        } else {
-            mPreferredWord = null;
-        }
-        setCandidatesViewShown(shouldCandidatesStripBeShown() || mCompletionOn);
+        };
+
+        mPredict.getPredictions(Predict.PredictionMode.CORRECT_CURRENT_WORD, predictionCallback);
     }
 
     private boolean pickDefaultSuggestion() {
@@ -2651,33 +2672,35 @@ public class AnySoftKeyboard extends InputMethodService implements
 //                mJustAutoAddedWord = addToDictionaries(mWord, AutoDictionary.AdditionType.Picked);
             }
 
-            final boolean showingAddToDictionaryHint = !mJustAutoAddedWord
-                    && index == 0
-                    && (mQuickFixes || mShowSuggestions)
-                    && !mSuggest.isValidWord(suggestion)// this is for the case
-                    // that the word was
-                    // auto-added upon
-                    // picking
-                    && !mSuggest.isValidWord(suggestion.toString()
-                    .toLowerCase());
+            //TODO: change adding workflow
+//            final boolean showingAddToDictionaryHint = !mJustAutoAddedWord
+//                    && index == 0
+//                    && (mQuickFixes || mShowSuggestions)
+//                    && !mSuggest.isValidWord(suggestion)// this is for the case
+//                    // that the word was
+//                    // auto-added upon
+//                    // picking
+//                    && !mSuggest.isValidWord(suggestion.toString()
+//                    .toLowerCase());
 
-            if (!mJustAutoAddedWord) {
-				/*
-				 * if (!correcting) { // Fool the state watcher so that a
-				 * subsequent backspace will // not do a revert, unless // we
-				 * just did a correction, in which case we need to stay in //
-				 * TextEntryState.State.PICKED_SUGGESTION state.
-				 * TextEntryState.typedCharacter((char) KeyCodes.SPACE, true);
-				 * setNextSuggestions(); } else if (!showingAddToDictionaryHint)
-				 * { // If we're not showing the "Touch again to save", then
-				 * show // corrections again. // In case the cursor position
-				 * doesn't change, make sure we show // the suggestions again.
-				 * clearSuggestions(); // postUpdateOldSuggestions(); }
-				 */
-                if (showingAddToDictionaryHint && mCandidateView != null) {
-                    mCandidateView.showAddToDictionaryHint(suggestion);
-                }
-            }
+            //TODO: change adding workflow
+//            if (!mJustAutoAddedWord) {
+//				/*
+//				 * if (!correcting) { // Fool the state watcher so that a
+//				 * subsequent backspace will // not do a revert, unless // we
+//				 * just did a correction, in which case we need to stay in //
+//				 * TextEntryState.State.PICKED_SUGGESTION state.
+//				 * TextEntryState.typedCharacter((char) KeyCodes.SPACE, true);
+//				 * setNextSuggestions(); } else if (!showingAddToDictionaryHint)
+//				 * { // If we're not showing the "Touch again to save", then
+//				 * show // corrections again. // In case the cursor position
+//				 * doesn't change, make sure we show // the suggestions again.
+//				 * clearSuggestions(); // postUpdateOldSuggestions(); }
+//				 */
+//                if (showingAddToDictionaryHint && mCandidateView != null) {
+//                    mCandidateView.showAddToDictionaryHint(suggestion);
+//                }
+//            }
         } finally {
             if (ic != null) {
                 ic.endBatchEdit();
@@ -2708,10 +2731,11 @@ public class AnySoftKeyboard extends InputMethodService implements
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) {
             if (correcting) {
-                //TODO: investigate effect of ignoring the device specific commit
+                //TODO: use the device specific commit
+                //create a wrapper class for corrections/suggestions and pass it
 //                AnyApplication.getDeviceSpecific()
 //                        .commitCorrectionToInputConnection(ic, mWord);
-                ic.commitCorrection(new CorrectionInfo(0, mComposer.getTypedWord(), suggestion));
+                ic.commitText(mPreferredWord, 1);
                 // and drawing popout text
                 mInputView.popTextOutOfKey(mPreferredWord);
             } else {
@@ -3165,74 +3189,76 @@ public class AnySoftKeyboard extends InputMethodService implements
         mMinimumWordCorrectionLength = sp
                 .getInt(getString(R.string.settings_key_min_length_for_word_correction__),
                         2);
-        if (mSuggest != null)
-            mSuggest.setMinimumWordLengthForCorrection(mMinimumWordCorrectionLength);
+
+        //TODO: check if this configuration makes sense
+//        if (mSuggest != null)
+//            mSuggest.setMinimumWordLengthForCorrection(mMinimumWordCorrectionLength);
 
         setInitialCondensedState(getResources().getConfiguration());
     }
 
     private void setDictionariesForCurrentKeyboard() {
-        if (mSuggest != null) {
-            if (!mPredictionOn) {
-                Log.d(TAG,
-                        "No suggestion is required. I'll try to release memory from the dictionary.");
-                // DictionaryFactory.getInstance().releaseAllDictionaries();
-                mSuggest.setMainDictionary(getApplicationContext(), null);
-                mSuggest.setUserDictionary(null);
-                mSuggest.setAutoDictionary(null);
-                mLastDictionaryRefresh = -1;
-            } else {
-                mLastDictionaryRefresh = SystemClock.elapsedRealtime();
-                // It null at the creation of the application.
-                if ((mKeyboardSwitcher != null)
-                        && mKeyboardSwitcher.isAlphabetMode()) {
-                    AnyKeyboard currentKeyobard = mKeyboardSwitcher
-                            .getCurrentKeyboard();
-
-                    // if there is a mapping in the settings, we'll use that,
-                    // else we'll
-                    // return the default
-                    String mappingSettingsKey = getDictionaryOverrideKey(currentKeyobard);
-                    String defaultDictionary = currentKeyobard
-                            .getDefaultDictionaryLocale();
-                    String dictionaryValue = mPrefs.getString(
-                            mappingSettingsKey, null);
-                    DictionaryAddOnAndBuilder dictionaryBuilder = null;
-
-                    if (dictionaryValue == null) {
-                        dictionaryBuilder = ExternalDictionaryFactory
-                                .getDictionaryBuilderByLocale(currentKeyobard
-                                        .getDefaultDictionaryLocale(),
-                                        getApplicationContext());
-                    } else {
-                        Log.d(TAG,
-                                "Default dictionary '"
-                                        + (defaultDictionary == null ? "None"
-                                        : defaultDictionary)
-                                        + "' for keyboard '"
-                                        + currentKeyobard
-                                        .getKeyboardPrefId()
-                                        + "' has been overriden to '"
-                                        + dictionaryValue + "'");
-                        dictionaryBuilder = ExternalDictionaryFactory
-                                .getDictionaryBuilderById(dictionaryValue,
-                                        getApplicationContext());
-                    }
-
-                    mSuggest.setMainDictionary(getApplicationContext(), dictionaryBuilder);
-                    String localeForSupportingDictionaries = dictionaryBuilder != null ? dictionaryBuilder
-                            .getLanguage() : defaultDictionary;
-                    mUserDictionary = mSuggest.getDictionaryFactory()
-                            .createUserDictionary(getApplicationContext(),
-                                    localeForSupportingDictionaries);
-                    mSuggest.setUserDictionary(mUserDictionary);
-
-                    mAutoDictionary = mSuggest.getDictionaryFactory().createAutoDictionary(getApplicationContext(),localeForSupportingDictionaries);
-                    mSuggest.setAutoDictionary(mAutoDictionary);
-                    mSuggest.setContactsDictionary(getApplicationContext(), mConfig.useContactsDictionary());
-                }
-            }
-        }
+//        if (mSuggest != null) {
+//            if (!mPredictionOn) {
+//                Log.d(TAG,
+//                        "No suggestion is required. I'll try to release memory from the dictionary.");
+//                // DictionaryFactory.getInstance().releaseAllDictionaries();
+//                mSuggest.setMainDictionary(getApplicationContext(), null);
+//                mSuggest.setUserDictionary(null);
+//                mSuggest.setAutoDictionary(null);
+//                mLastDictionaryRefresh = -1;
+//            } else {
+//                mLastDictionaryRefresh = SystemClock.elapsedRealtime();
+//                // It null at the creation of the application.
+//                if ((mKeyboardSwitcher != null)
+//                        && mKeyboardSwitcher.isAlphabetMode()) {
+//                    AnyKeyboard currentKeyobard = mKeyboardSwitcher
+//                            .getCurrentKeyboard();
+//
+//                    // if there is a mapping in the settings, we'll use that,
+//                    // else we'll
+//                    // return the default
+//                    String mappingSettingsKey = getDictionaryOverrideKey(currentKeyobard);
+//                    String defaultDictionary = currentKeyobard
+//                            .getDefaultDictionaryLocale();
+//                    String dictionaryValue = mPrefs.getString(
+//                            mappingSettingsKey, null);
+//                    DictionaryAddOnAndBuilder dictionaryBuilder = null;
+//
+//                    if (dictionaryValue == null) {
+//                        dictionaryBuilder = ExternalDictionaryFactory
+//                                .getDictionaryBuilderByLocale(currentKeyobard
+//                                        .getDefaultDictionaryLocale(),
+//                                        getApplicationContext());
+//                    } else {
+//                        Log.d(TAG,
+//                                "Default dictionary '"
+//                                        + (defaultDictionary == null ? "None"
+//                                        : defaultDictionary)
+//                                        + "' for keyboard '"
+//                                        + currentKeyobard
+//                                        .getKeyboardPrefId()
+//                                        + "' has been overriden to '"
+//                                        + dictionaryValue + "'");
+//                        dictionaryBuilder = ExternalDictionaryFactory
+//                                .getDictionaryBuilderById(dictionaryValue,
+//                                        getApplicationContext());
+//                    }
+//
+//                    mSuggest.setMainDictionary(getApplicationContext(), dictionaryBuilder);
+//                    String localeForSupportingDictionaries = dictionaryBuilder != null ? dictionaryBuilder
+//                            .getLanguage() : defaultDictionary;
+//                    mUserDictionary = mSuggest.getDictionaryFactory()
+//                            .createUserDictionary(getApplicationContext(),
+//                                    localeForSupportingDictionaries);
+//                    mSuggest.setUserDictionary(mUserDictionary);
+//
+//                    mAutoDictionary = mSuggest.getDictionaryFactory().createAutoDictionary(getApplicationContext(),localeForSupportingDictionaries);
+//                    mSuggest.setAutoDictionary(mAutoDictionary);
+//                    mSuggest.setContactsDictionary(getApplicationContext(), mConfig.useContactsDictionary());
+//                }
+//            }
+//        }
     }
 
     private String getDictionaryOverrideKey(AnyKeyboard currentKeyboard) {
