@@ -44,6 +44,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.AnimationUtils;
 import android.view.inputmethod.CompletionInfo;
+import android.view.inputmethod.CorrectionInfo;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
@@ -2461,7 +2462,6 @@ public class AnySoftKeyboard extends InputMethodService implements
         // inside the predicted word.
         // in this case, I will want to just dump the separator.
         final boolean separatorInsideWord = (mComposer.getCursorPosition() < mComposer.getLength());
-
         mComposer.moveCurrentWordToPredecessors();
         //TODO: if separatorInsideWord move the rest of the current word to the next word
         //TODO: delete what is currently edited here or look for reasons to do it elsewhere
