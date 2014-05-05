@@ -28,7 +28,6 @@ import android.content.res.TypedArray;
 import android.graphics.drawable.Drawable;
 import android.inputmethodservice.InputMethodService;
 import android.media.AudioManager;
-import android.net.Uri;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.SystemClock;
@@ -45,7 +44,6 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.AnimationUtils;
 import android.view.inputmethod.CompletionInfo;
-import android.view.inputmethod.CorrectionInfo;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
@@ -62,7 +60,6 @@ import com.anysoftkeyboard.devicespecific.Clipboard;
 import com.anysoftkeyboard.dictionaries.DictionaryAddOnAndBuilder;
 import com.anysoftkeyboard.dictionaries.EditableDictionary;
 import com.anysoftkeyboard.dictionaries.ExternalDictionaryFactory;
-import com.anysoftkeyboard.dictionaries.Suggest;
 import com.anysoftkeyboard.dictionaries.TextEntryState;
 import com.anysoftkeyboard.dictionaries.TextEntryState.State;
 import com.anysoftkeyboard.dictionaries.sqlite.AutoDictionary;
@@ -2045,8 +2042,9 @@ public class AnySoftKeyboard extends InputMethodService implements
             return;
 
         if (mPredicting) {
-            //TODO: investigate if last word should be restarted or if the deletion just
-            //sets you back to the gap in between the words
+            //we clear the text that is currently predicted
+            //the previous word is not resumed since we assume that we use will type another
+            //new word instead
             mComposer.clearCurrentWord();
             mPredicting = false;
             ic.setComposingText("", 1);
@@ -2112,6 +2110,8 @@ public class AnySoftKeyboard extends InputMethodService implements
         // ic.deleteSurroundingText(csl == 0 ? 1 : csl, 0);
         ic.deleteSurroundingText(inputLength - idx, 0);// it is always > 0 !
         postUpdateShiftKeyState();
+
+        //TODO: delete the previous word from the predecessors if predicting
     }
 
     private void handleDeleteLastCharacter(boolean forMultitap) {
@@ -2187,9 +2187,49 @@ public class AnySoftKeyboard extends InputMethodService implements
                         sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL);
                 }
             }
+
+            if (mPredictionOn && ic != null) {
+                //check if the character before the cursor belongs to a word and if yes
+                //start predicting with that word
+                final CharSequence charBefore = ic.getTextBeforeCursor(1, 0);
+                if (charBefore == null || charBefore.length() == 0 ||
+                        isWordSeparator(charBefore.charAt(0)))
+                    //TODO what about surrogate separators?
+                    //we cannot get the character before the cursor, there is none or it is
+                    //a separator
+                    return;
+
+                if (mComposer.resumePreviousWord())
+                    //there is a previous word
+                    return;
+
+                mComposer.setCurrentWord(getPredecessorWord(ic), false);
+            }
+
         }
         // mJustRevertedSeparator = null;
         // handleShiftStateAfterBackspace();
+    }
+
+    private CharSequence getPredecessorWord(InputConnection ic) {
+        if (ic == null)
+            return null;
+
+        final StringBuilder predecessorWord = new StringBuilder();
+        //TODO check far we are scanning into the text
+        final CharSequence prev = ic.getTextBeforeCursor(48, 0);
+        if (prev == null)
+            return predecessorWord;
+        for (int i = predecessorWord.length() - 1; i >= 0; i++) {
+            //iterate from the end of the buffer to its start and add characters
+            //to predecessorWord as long as they aren't separators
+            //TODO what about surrogate separators?
+            final char c = prev.charAt(i);
+            if (isWordSeparator(c))
+                return predecessorWord;
+            predecessorWord.append(c);
+        }
+        return predecessorWord.reverse();
     }
 
     /*
@@ -2421,6 +2461,10 @@ public class AnySoftKeyboard extends InputMethodService implements
         // inside the predicted word.
         // in this case, I will want to just dump the separator.
         final boolean separatorInsideWord = (mComposer.getCursorPosition() < mComposer.getLength());
+
+        mComposer.moveCurrentWordToPredecessors();
+        //TODO: if separatorInsideWord move the rest of the current word to the next word
+        //TODO: delete what is currently edited here or look for reasons to do it elsewhere
 
         if (mPredicting && !separatorInsideWord) {
             // In certain languages where single quote is a separator, it's
