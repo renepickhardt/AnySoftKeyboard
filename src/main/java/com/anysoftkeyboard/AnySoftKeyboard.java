@@ -44,7 +44,6 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.AnimationUtils;
 import android.view.inputmethod.CompletionInfo;
-import android.view.inputmethod.CorrectionInfo;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
@@ -100,16 +99,16 @@ import com.menny.android.anysoftkeyboard.BuildConfig;
 import com.menny.android.anysoftkeyboard.FeaturesSet;
 import com.menny.android.anysoftkeyboard.R;
 
-import de.typology.predict.OnPredictionsComputedCallback;
-import de.typology.predict.Predict;
-import de.typology.predict.PredictionContextComposer;
-import de.typology.predict.model.Prediction;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+
+import de.typology.predict.OnPredictionsComputedCallback;
+import de.typology.predict.Predict;
+import de.typology.predict.PredictionContextComposer;
+import de.typology.predict.model.Prediction;
 
 /**
  * Input method implementation for Qwerty'ish keyboard.
@@ -2113,6 +2112,8 @@ public class AnySoftKeyboard extends InputMethodService implements
         postUpdateShiftKeyState();
 
         //TODO: delete the previous word from the predecessors if predicting
+        //TODO: remove this, just for development
+//        mComposer.clearEverything();
     }
 
     private void handleDeleteLastCharacter(boolean forMultitap) {
@@ -2187,24 +2188,50 @@ public class AnySoftKeyboard extends InputMethodService implements
                     else
                         sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL);
                 }
-            }
 
-            if (mPredictionOn && ic != null) {
-                //check if the character before the cursor belongs to a word and if yes
-                //start predicting with that word
-                final CharSequence charBefore = ic.getTextBeforeCursor(1, 0);
-                if (charBefore == null || charBefore.length() == 0 ||
-                        isWordSeparator(charBefore.charAt(0)))
-                    //TODO what about surrogate separators?
-                    //we cannot get the character before the cursor, there is none or it is
-                    //a separator
-                    return;
-
-                if (mComposer.resumePreviousWord())
-                    //there is a previous word
-                    return;
-
-                mComposer.setCurrentWord(getPredecessorWord(ic), false);
+//                if (!mPredicting && mPredictionOn && ic != null) {
+//                    //check if the character before the cursor belongs to a word and if yes
+//                    //start predicting with that word
+//                    final CharSequence charBefore = ic.getTextBeforeCursor(1, 0);
+//                    if (charBefore == null || charBefore.length() == 0 ||
+//                            isWordSeparator(charBefore.charAt(0)))
+//                        //TODO what about surrogate separators?
+//                        //we cannot get the character before the cursor, there is none or it is
+//                        //a separator
+//                        return;
+//
+//                    final int cursorPosition = getCursorPosition(ic);
+//
+//                    if (mComposer.resumePreviousWord()) {
+//                        //there is a previous word
+////                    return;
+//                    }
+//
+//                    final CharSequence prevWord = getPredecessorWord(ic);
+//
+//                    if (prevWord.length() == 0)
+//                        return;
+//
+//
+//                    Log.i(TAG, "prev word: " + prevWord);
+//                    mComposer.setCurrentWord(prevWord, false);
+//
+//                    mPredicting = true;
+//                    //TODO: make device version specific
+////                    ic.beginBatchEdit();
+//////                    ic.setComposingRegion(cursorPosition - prevWord.length(), cursorPosition);
+////                    ic.deleteSurroundingText(prevWord.length(), 0);
+////                    ic.setComposingText(prevWord, 1);
+////                    ic.endBatchEdit();
+//                    revertLastWord(false);
+//
+//                    postUpdateSuggestions(0);
+//
+//                List<Prediction> suggs = new ArrayList<Prediction>();
+//                suggs.add(new Prediction("Test", 5));
+//                mCandidateView.setSuggestions(suggs, true, true, false);
+//                setCandidatesViewShown(true);
+//                }
             }
 
         }
@@ -2212,26 +2239,30 @@ public class AnySoftKeyboard extends InputMethodService implements
         // handleShiftStateAfterBackspace();
     }
 
-    private CharSequence getPredecessorWord(InputConnection ic) {
-        if (ic == null)
-            return null;
-
-        final StringBuilder predecessorWord = new StringBuilder();
-        //TODO check far we are scanning into the text
-        final CharSequence prev = ic.getTextBeforeCursor(48, 0);
-        if (prev == null)
-            return predecessorWord;
-        for (int i = predecessorWord.length() - 1; i >= 0; i++) {
-            //iterate from the end of the buffer to its start and add characters
-            //to predecessorWord as long as they aren't separators
-            //TODO what about surrogate separators?
-            final char c = prev.charAt(i);
-            if (isWordSeparator(c))
-                return predecessorWord;
-            predecessorWord.append(c);
-        }
-        return predecessorWord.reverse();
-    }
+//    private CharSequence getPredecessorWord(InputConnection ic) {
+//        if (ic == null)
+//            return null;
+//
+//        final StringBuilder predecessorWord = new StringBuilder();
+//        //TODO check far we are scanning into the text
+//        final CharSequence prev = ic.getTextBeforeCursor(48, 0);
+//        if (prev == null) {
+//            return predecessorWord;
+//        }
+//
+//        Log.i(TAG, "got region with length " + prev.length());
+//
+//        for (int i = prev.length() - 1; i >= 0; i--) {
+//            //iterate from the end of the buffer to its start and add characters
+//            //to predecessorWord as long as they aren't separators
+//            //TODO what about surrogate separators?
+//            final char c = prev.charAt(i);
+//            if (isWordSeparator(c))
+//                break;
+//            predecessorWord.append(c);
+//        }
+//        return predecessorWord.reverse();
+//    }
 
     /*
 	 * private void handleShiftStateAfterBackspace() {
@@ -2462,9 +2493,6 @@ public class AnySoftKeyboard extends InputMethodService implements
         // inside the predicted word.
         // in this case, I will want to just dump the separator.
         final boolean separatorInsideWord = (mComposer.getCursorPosition() < mComposer.getLength());
-        mComposer.moveCurrentWordToPredecessors();
-        //TODO: if separatorInsideWord move the rest of the current word to the next word
-        //TODO: delete what is currently edited here or look for reasons to do it elsewhere
 
         if (mPredicting && !separatorInsideWord) {
             // In certain languages where single quote is a separator, it's
@@ -2521,6 +2549,12 @@ public class AnySoftKeyboard extends InputMethodService implements
             TextEntryState.acceptedDefault(mComposer.getTypedWord(),
                     mPreferredWord);
         }
+
+        //        mComposer.moveCurrentWordToPredecessors();
+        mComposer.clearCurrentWord();
+        //TODO: if separatorInsideWord move the rest of the current word to the next word
+        //TODO: delete what is currently edited here or look for reasons to do it elsewhere
+
         updateShiftKeyState(getCurrentInputEditorInfo());
         if (ic != null) {
             ic.endBatchEdit();
@@ -2651,7 +2685,64 @@ public class AnySoftKeyboard extends InputMethodService implements
             }
         };
 
-        mPredict.getPredictions(Predict.PredictionMode.CORRECT_CURRENT_WORD, predictionCallback);
+//        mPredict.getPredictions(Predict.PredictionMode.CORRECT_CURRENT_WORD, predictionCallback);
+        //TODO: temporarily, change this back later to use the composer
+        createContextAndGetPredictions(predictionCallback);
+    }
+
+    private void createContextAndGetPredictions(OnPredictionsComputedCallback callback) {
+        InputConnection ic = getCurrentInputConnection();
+
+        if (ic == null) {
+            return;
+        }
+
+        final int prefetchLength = 48;
+        final CharSequence prev = ic.getTextBeforeCursor(prefetchLength, 0);
+        if (prev == null)
+            return;
+
+//        int pos;
+//        final StringBuilder currentWord = new StringBuilder();
+//        for (pos = prev.length() - 1; pos >= 0; pos--) {
+//            char c = prev.charAt(pos);
+//            if (isWordSeparator(c))
+//                break;
+//            currentWord.append(c);
+//        }
+//        currentWord.reverse();
+//
+//        pos = calculateSkipPos(prev, pos);
+
+        final List<CharSequence> predecessorWords = new ArrayList<CharSequence>();
+        StringBuilder current = new StringBuilder();
+        for (int pos = prev.length() - 1; pos >= 0; pos--) {
+            char c = prev.charAt(pos);
+
+            if (isWordSeparator(c)) {
+                current.reverse();
+                predecessorWords.add(current);
+                current = new StringBuilder();
+                pos = calculateSkipPos(prev, pos) + 1;
+                continue;
+            }
+
+            current.append(c);
+        }
+        current.reverse();
+        predecessorWords.add(current);
+
+        Log.i(TAG, "predecessors: " + predecessorWords.toString());
+
+        mPredict.getPredictions(predecessorWords, Predict.PredictionMode.CORRECT_CURRENT_WORD,
+                callback);
+    }
+
+    private int calculateSkipPos(final CharSequence chars, int curPos) {
+        while (curPos > 0 && isWordSeparator(chars.charAt(curPos)))
+            curPos--;
+
+        return curPos;
     }
 
     private boolean pickDefaultSuggestion() {
@@ -2761,7 +2852,7 @@ public class AnySoftKeyboard extends InputMethodService implements
      * @param correcting whether this is due to a correction of an existing word.
      */
     private CharSequence pickSuggestion(CharSequence suggestion,
-                                        boolean correcting) {
+                                        final boolean correcting) {
         if (mCapsLock) {
             suggestion = suggestion.toString().toUpperCase();
         } else if (preferCapitalization()
@@ -2791,6 +2882,10 @@ public class AnySoftKeyboard extends InputMethodService implements
         if (mCandidateView != null) {
             mCandidateView.setSuggestions(null, false, false, false);
         }
+        //TODO: readd this later
+//        mComposer.setCurrentWord(suggestion, correcting);
+//        mComposer.moveCurrentWordToPredecessors();
+
         // If we just corrected a word, then don't show punctuations
         if (!correcting) {
             setNextSuggestions();
