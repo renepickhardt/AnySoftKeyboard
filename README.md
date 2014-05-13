@@ -1,5 +1,6 @@
 AnySoftKeyboard
 ====================
+[![Build Status](https://api.shippable.com/projects/535e7eb0456b81c100ad4860/badge/master)](https://www.shippable.com/projects/535e7eb0456b81c100ad4860)
 
 IMPORTANT: in order to compile you need to link the module predict from the prediction library in the main directory.
 
