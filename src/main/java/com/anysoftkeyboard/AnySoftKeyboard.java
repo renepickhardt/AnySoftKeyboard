@@ -2690,6 +2690,8 @@ public class AnySoftKeyboard extends InputMethodService implements
         createContextAndGetPredictions(predictionCallback);
     }
 
+    private String lastPrefix = "";
+
     private void createContextAndGetPredictions(OnPredictionsComputedCallback callback) {
         InputConnection ic = getCurrentInputConnection();
 
@@ -2697,8 +2699,16 @@ public class AnySoftKeyboard extends InputMethodService implements
             return;
         }
 
-        final int prefetchLength = 48;
-        final CharSequence prev = ic.getTextBeforeCursor(prefetchLength, 0);
+        final int prefetchLength = 36;
+
+        final CharSequence prev;
+        if (!mComposer.getTypedWord().toString().startsWith(lastPrefix))
+            prev = ic.getTextBeforeCursor(prefetchLength, 0);
+        else {
+            lastPrefix = mComposer.getTypedWord().toString();
+            prev = lastPrefix;
+        }
+//        final CharSequence prev = "Some long random string i just made up foo";
         if (prev == null)
             return;
 
