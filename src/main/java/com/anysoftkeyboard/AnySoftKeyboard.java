@@ -311,7 +311,7 @@ public class AnySoftKeyboard extends InputMethodService implements
     }
 
     private void initSuggest() {
-        mPredict = new Predict();
+        mPredict = new Predict(this);
         //TODO: configure Predict
 //        mSuggest = new Suggest(this);
 //        mSuggest.setCorrectionMode(mQuickFixes, mShowSuggestions);
@@ -2642,11 +2642,10 @@ public class AnySoftKeyboard extends InputMethodService implements
             return;
         }
 
-        //TODO: make lookup to Predict class
 //        List<CharSequence> stringList = mSuggest.getSuggestions(/* mInputView, */mWord, false);
         OnPredictionsComputedCallback predictionCallback = new OnPredictionsComputedCallback() {
             @Override
-            public void onPredictionsComputed(final List<Prediction> predictions, final long querryId) {
+            public void onPredictionsComputed(final List<Prediction> predictions, final long queryId) {
 //                boolean correctionAvailable = mSuggest.hasMinimalCorrection();
 //                // || mCorrectionMode == mSuggest.CORRECTION_FULL;
 
@@ -2654,6 +2653,21 @@ public class AnySoftKeyboard extends InputMethodService implements
 //                boolean typedWordValid = mSuggest.isValidWord(typedWord);/*
 //                || (preferCapitalization() && mSuggest.isValidWord(typedWord
 //                .toString().toLowerCase()));*/
+
+                Log.i(TAG, "got predictions in ASK: " + predictions);
+
+                //----------------------
+
+//                mCandidateView.setSuggestions(predictions, false, false,
+//                        false);
+//                if (predictions.size() > 0) {
+//                    mPreferredWord = predictions.get(1);
+//                } else {
+//                    mPreferredWord = mComposer.getTypedWord();
+//                }
+//                setCandidatesViewShown(true);
+
+                //---------------------------
 
                 final CharSequence typedWord = mComposer.getTypedWord();
                 //the number of suggestions is > 0
