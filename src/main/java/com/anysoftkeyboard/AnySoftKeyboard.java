@@ -102,6 +102,7 @@ import com.menny.android.anysoftkeyboard.R;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -2654,8 +2655,6 @@ public class AnySoftKeyboard extends InputMethodService implements
 //                || (preferCapitalization() && mSuggest.isValidWord(typedWord
 //                .toString().toLowerCase()));*/
 
-                Log.i(TAG, "got predictions in ASK: " + predictions);
-
                 //----------------------
 
 //                mCandidateView.setSuggestions(predictions, false, false,
@@ -2714,58 +2713,101 @@ public class AnySoftKeyboard extends InputMethodService implements
         }
 
         final int prefetchLength = 36;
+        CharSequence prev;
 
-        final CharSequence prev;
-        if (!mComposer.getTypedWord().toString().startsWith(lastPrefix))
-            prev = ic.getTextBeforeCursor(prefetchLength, 0);
-        else {
-            lastPrefix = mComposer.getTypedWord().toString();
-            prev = lastPrefix;
-        }
-//        final CharSequence prev = "Some long random string i just made up foo";
-        if (prev == null)
-            return;
+//-------------------------------------------------------
 
-//        int pos;
-//        final StringBuilder currentWord = new StringBuilder();
-//        for (pos = prev.length() - 1; pos >= 0; pos--) {
-//            char c = prev.charAt(pos);
-//            if (isWordSeparator(c))
-//                break;
-//            currentWord.append(c);
+//        if (!mComposer.getTypedWord().toString().startsWith(lastPrefix))
+//            prev = ic.getTextBeforeCursor(prefetchLength, 0);
+//        else {
+//            lastPrefix = mComposer.getTypedWord().toString();
+//            prev = lastPrefix;
 //        }
-//        currentWord.reverse();
+////        final CharSequence prev = "Some long random string i just made up foo";
 //
-//        pos = calculateSkipPos(prev, pos);
 
-        final List<CharSequence> predecessorWords = new ArrayList<CharSequence>();
-        StringBuilder current = new StringBuilder();
-        for (int pos = prev.length() - 1; pos >= 0; pos--) {
-            char c = prev.charAt(pos);
+//----------------------------------------------------
 
-            if (isWordSeparator(c)) {
-                current.reverse();
-                predecessorWords.add(current);
-                current = new StringBuilder();
-                pos = calculateSkipPos(prev, pos) + 1;
-                continue;
-            }
+        prev = ic.getTextBeforeCursor(prefetchLength, 0);
 
-            current.append(c);
-        }
-        current.reverse();
-        predecessorWords.add(current);
+//---------------------------------------------------
 
-        Log.i(TAG, "predecessors: " + predecessorWords.toString());
+        if (prev == null)
+            prev = "";
+
+//        final List<CharSequence> predecessorWords = new ArrayList<CharSequence>();
+//        StringBuilder current = new StringBuilder();
+//        for (int pos = prev.length() - 1; pos >= 0; pos--) {
+//            char c = prev.charAt(pos);
+//
+//            if (isWordSeparator(c)) {
+//                current.reverse();
+//                predecessorWords.add(current);
+////                current = new StringBuilder();
+//                current.setLength(0);
+//                pos = calculateSkipPos(prev, pos) + 1;
+//                continue;
+//            }
+//
+//            current.append(c);
+//        }
+//        current.reverse();
+//        predecessorWords.add(current);
+
+//        List<CharSequence> predecessorWords = splitContext(prev);
+
+        String[] predecessorWords = splitContext(prev);
+
+//        Log.i(TAG, "predecessors: " + predecessorWords.toString());
 
         mPredict.getPredictions(predecessorWords, Predict.PredictionMode.CORRECT_CURRENT_WORD,
                 callback);
     }
 
-    private int calculateSkipPos(final CharSequence chars, int curPos) {
-        while (curPos > 0 && isWordSeparator(chars.charAt(curPos)))
-            curPos--;
+    private static final String SPLIT_PATTERN = "[ \t\n,\\.\\(\\)&@#\\+/\\[\\]\\{\\}]+";
 
+    private String[] splitContext(final CharSequence context) {
+        return context.toString().split(SPLIT_PATTERN);
+
+//        final String[] split = context.toString().split(SPLIT_PATTERN);
+//        List<CharSequence> predWords = new ArrayList<>(split.length);
+//        for (String word : split) {
+//            predWords.add(word);
+//        }
+//
+//        Log.i(TAG, "calculated predecessors: " + predWords);
+//
+//        return predWords;
+    }
+
+//    private List<CharSequence> splitContext(final CharSequence context) {
+//        final List<CharSequence> predecessorWords = new ArrayList<>();
+//        final int contextLength = context.length();
+//        int lastPos = 0;
+//        for (int pos = 0; pos < contextLength; pos++) {
+////            if (!isWordSeparator(context.charAt(pos)))
+//            if (Character.isLetterOrDigit(context.charAt(pos)))
+//                continue;
+//            predecessorWords.add(context.subSequence(lastPos, pos));
+//            pos = calculateSkipPos(context, pos);
+//            lastPos = pos;
+//        }
+//
+//        Log.i(TAG, "calculated predecessors: " + predecessorWords);
+//        return predecessorWords;
+//    }
+
+//    private int calculateSkipPos(final CharSequence chars, int curPos) {
+//        while (curPos > 0 && isWordSeparator(chars.charAt(curPos)))
+//            curPos--;
+//
+//        return curPos;
+//    }
+
+    private int calculateSkipPos(final CharSequence chars, int curPos) {
+        final int length = chars.length();
+        while (curPos < length && isWordSeparator(chars.charAt(curPos)))
+            curPos++;
         return curPos;
     }
 
