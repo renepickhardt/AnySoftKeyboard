@@ -102,7 +102,6 @@ import com.menny.android.anysoftkeyboard.R;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -2619,6 +2618,8 @@ public class AnySoftKeyboard extends InputMethodService implements
         return mShowSuggestions && onEvaluateInputViewShown();
     }
 
+    private long mCurPredictionRequestId = 0;
+
     /*package*/ void performUpdateSuggestions() {
         Log.d(TAG, "performUpdateSuggestions: has mPredict:"
                 + (mPredict != null) + ", isPredictionOn:"
@@ -2655,25 +2656,16 @@ public class AnySoftKeyboard extends InputMethodService implements
 //                || (preferCapitalization() && mSuggest.isValidWord(typedWord
 //                .toString().toLowerCase()));*/
 
-                //----------------------
-
-//                mCandidateView.setSuggestions(predictions, false, false,
-//                        false);
-//                if (predictions.size() > 0) {
-//                    mPreferredWord = predictions.get(1);
-//                } else {
-//                    mPreferredWord = mComposer.getTypedWord();
-//                }
-//                setCandidatesViewShown(true);
-
-                //---------------------------
+                if (mCurPredictionRequestId > queryId)
+                    //This query is not up to date, a newer one has been issued already
+                    return;
 
                 final CharSequence typedWord = mComposer.getTypedWord();
                 //the number of suggestions is > 0
                 boolean correctionAvailable = true;
                 //TODO: do we really need to know if the typed word is valid?
                 // We just rank all words according to their score
-                final boolean typedWordValid = false;
+                final boolean typedWordValid = true;
 
                 if (mShowSuggestions || mQuickFixes) {
                     correctionAvailable |= typedWordValid;
@@ -2700,37 +2692,21 @@ public class AnySoftKeyboard extends InputMethodService implements
 
 //        mPredict.getPredictions(Predict.PredictionMode.CORRECT_CURRENT_WORD, predictionCallback);
         //TODO: temporarily, change this back later to use the composer
-        createContextAndGetPredictions(predictionCallback);
+        mCurPredictionRequestId = createContextAndGetPredictions(predictionCallback);
     }
 
     private String lastPrefix = "";
 
-    private void createContextAndGetPredictions(OnPredictionsComputedCallback callback) {
+    private long createContextAndGetPredictions(OnPredictionsComputedCallback callback) {
         InputConnection ic = getCurrentInputConnection();
 
         if (ic == null) {
-            return;
+            return -1;
         }
 
         final int prefetchLength = 36;
-        CharSequence prev;
 
-//-------------------------------------------------------
-
-//        if (!mComposer.getTypedWord().toString().startsWith(lastPrefix))
-//            prev = ic.getTextBeforeCursor(prefetchLength, 0);
-//        else {
-//            lastPrefix = mComposer.getTypedWord().toString();
-//            prev = lastPrefix;
-//        }
-////        final CharSequence prev = "Some long random string i just made up foo";
-//
-
-//----------------------------------------------------
-
-        prev = ic.getTextBeforeCursor(prefetchLength, 0);
-
-//---------------------------------------------------
+        CharSequence prev = ic.getTextBeforeCursor(prefetchLength, 0);
 
         if (prev == null)
             prev = "";
@@ -2760,7 +2736,7 @@ public class AnySoftKeyboard extends InputMethodService implements
 
 //        Log.i(TAG, "predecessors: " + predecessorWords.toString());
 
-        mPredict.getPredictions(predecessorWords, Predict.PredictionMode.CORRECT_CURRENT_WORD,
+        return mPredict.getPredictions(predecessorWords, Predict.PredictionMode.CORRECT_CURRENT_WORD,
                 callback);
     }
 
