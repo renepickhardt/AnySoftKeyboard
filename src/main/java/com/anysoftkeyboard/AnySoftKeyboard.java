@@ -57,7 +57,9 @@ import android.widget.Toast;
 import com.anysoftkeyboard.LayoutSwitchAnimationListener.AnimationType;
 import com.anysoftkeyboard.api.KeyCodes;
 import com.anysoftkeyboard.devicespecific.Clipboard;
+import com.anysoftkeyboard.dictionaries.Dictionary;
 import com.anysoftkeyboard.dictionaries.DictionaryAddOnAndBuilder;
+import com.anysoftkeyboard.dictionaries.DictionaryPredictionProvider;
 import com.anysoftkeyboard.dictionaries.EditableDictionary;
 import com.anysoftkeyboard.dictionaries.ExternalDictionaryFactory;
 import com.anysoftkeyboard.dictionaries.TextEntryState;
@@ -108,6 +110,7 @@ import java.util.Map;
 import de.typology.predict.OnPredictionsComputedCallback;
 import de.typology.predict.Predict;
 import de.typology.predict.PredictionContextComposer;
+import de.typology.predict.PredictionProvider;
 import de.typology.predict.model.Prediction;
 
 /**
@@ -317,7 +320,29 @@ public class AnySoftKeyboard extends InputMethodService implements
 //        mSuggest.setCorrectionMode(mQuickFixes, mShowSuggestions);
 //        mSuggest.setMinimumWordLengthForCorrection(mMinimumWordCorrectionLength);
 //        setDictionariesForCurrentKeyboard();
+
+        final PredictionProvider provider = getDictionaryPredictionProvider();
+        if (provider != null)
+            mPredict.setDictionaryPredictionProvider(provider);
+        else
+            Log.e(TAG, "cannot set dictionary provider because it is null");
     }
+
+    private PredictionProvider getDictionaryPredictionProvider() {
+        final AnyKeyboard currentKeyobard = mKeyboardSwitcher.getCurrentKeyboard();
+        final DictionaryAddOnAndBuilder dictionaryBuilder =
+                ExternalDictionaryFactory.getDictionaryBuilderByLocale(
+                    currentKeyobard.getDefaultDictionaryLocale(),
+                        getApplicationContext());
+        try {
+            final Dictionary dict = dictionaryBuilder.createDictionary();
+            return new DictionaryPredictionProvider(dict);
+        } catch (Exception e) {
+            Log.e(TAG, "error creating DictionaryPredictionProvider: " + e);
+        }
+        return null;
+    }
+
 
     @Override
     public void onDestroy() {
@@ -2655,6 +2680,8 @@ public class AnySoftKeyboard extends InputMethodService implements
 //                boolean typedWordValid = mSuggest.isValidWord(typedWord);/*
 //                || (preferCapitalization() && mSuggest.isValidWord(typedWord
 //                .toString().toLowerCase()));*/
+
+                Log.i(TAG, "got predictions: " + predictions);
 
                 if (mCurPredictionRequestId > queryId)
                     //This query is not up to date, a newer one has been issued already
